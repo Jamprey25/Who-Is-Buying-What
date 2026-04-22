@@ -5,6 +5,7 @@ const STATE_FILE_PATH = path.resolve(process.cwd(), "data", "state.json");
 
 interface FilingState {
   lastSeenId: string | null;
+  lastSeenAt: string | null; // ISO timestamp
 }
 
 export interface Filing {
@@ -16,30 +17,32 @@ function readState(): FilingState {
     const raw = fs.readFileSync(STATE_FILE_PATH, "utf-8");
     const parsed = JSON.parse(raw) as Partial<FilingState>;
     if (typeof parsed.lastSeenId === "string" || parsed.lastSeenId === null) {
-      return { lastSeenId: parsed.lastSeenId };
+      const lastSeenAt =
+        typeof parsed.lastSeenAt === "string" ? parsed.lastSeenAt : null;
+      return { lastSeenId: parsed.lastSeenId, lastSeenAt };
     }
 
     console.warn(
       `[${new Date().toISOString()}] Invalid state format in ${STATE_FILE_PATH}; defaulting to empty state.`
     );
-    return { lastSeenId: null };
+    return { lastSeenId: null, lastSeenAt: null };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { lastSeenId: null };
+      return { lastSeenId: null, lastSeenAt: null };
     }
 
     if (error instanceof SyntaxError) {
       console.warn(
         `[${new Date().toISOString()}] Corrupt JSON in ${STATE_FILE_PATH}; defaulting to empty state.`
       );
-      return { lastSeenId: null };
+      return { lastSeenId: null, lastSeenAt: null };
     }
 
     const message = error instanceof Error ? error.message : String(error);
     console.warn(
       `[${new Date().toISOString()}] Failed to read state file (${message}); defaulting to empty state.`
     );
-    return { lastSeenId: null };
+    return { lastSeenId: null, lastSeenAt: null };
   }
 }
 
