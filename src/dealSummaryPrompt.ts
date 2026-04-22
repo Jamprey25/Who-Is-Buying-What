@@ -136,8 +136,6 @@ export async function generateSummary(
   extraction: ExtractionResult,
   filingText: string
 ): Promise<string> {
-  const client = new Anthropic();
-
   const filingExcerpt = filingText.slice(0, MAX_FILING_CHARS);
 
   const userMessage = buildDealSummaryUserMessage({
@@ -151,19 +149,16 @@ export async function generateSummary(
   let raw: string;
 
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
+    raw = await complete({
+      purpose: "summary",
       system: DEAL_SUMMARY_SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userMessage }],
+      user: userMessage,
+      maxTokens: MAX_TOKENS,
     });
-
-    const block = response.content[0];
-    raw = block.type === "text" ? block.text.trim() : "";
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(
-      `[${new Date().toISOString()}] generateSummary: Claude API error — ${message}. Using fallback.`
+      `[${new Date().toISOString()}] generateSummary: LLM error — ${message}. Using fallback.`
     );
     return buildFallback(extraction);
   }

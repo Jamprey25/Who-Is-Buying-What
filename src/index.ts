@@ -22,6 +22,7 @@ import { filterFilingsByFormType }     from "./filterFilings";
 import { getPrimaryDocumentUrl }       from "./edgarDocumentUrl";
 import { fetchFilingContent }          from "./fetchFilingContent";
 import { extractTextFromFiling }       from "./extractTextFromFiling";
+import { preFilterFiling }             from "./preFilter";
 
 // ─── Phase 2: Extract ─────────────────────────────────────────────────────────
 import {
@@ -159,6 +160,20 @@ async function processOneFiling(filing: TaggedFiling): Promise<void> {
     log.warn({ accessionNumber }, "Empty text extracted from filing — skipping");
     return;
   }
+
+  // ── Phase 2a-pre: Keyword pre-filter (zero-cost) ─────────────────────────────
+  // Discards obvious non-M&A filings (earnings, governance, dividends) before
+  // paying for any LLM call. Amendments bypass this gate so they can always
+  // merge into their original deal record.
+  const preVerdict = preFilterFiling(text);
+  if (preVerdict === "DEFINITELY_NOT" && !isAmendment) {
+    log.info(
+      { accessionNumber, preVerdict },
+      "Pre-filter rejected filing — skipping LLM pipeline"
+    );
+    return;
+  }
+  log.debug({ accessionNumber, preVerdict }, "Pre-filter verdict");
 
   // ── Phase 2a: Classify ───────────────────────────────────────────────────────
   const classification = await classifyFiling(text);
