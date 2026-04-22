@@ -10,12 +10,20 @@
   },
   "dependencies": {
     "axios": "^1.15.2",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "socket.io": "^4.8.3",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/xml2js": "^0.4.14",
     "jest": "^29.0.0",
+    "tsx": "^4.21.0",
     "webpack": "^5.0.0",
-    "webpack-cli": "^5.0.0",
-    "@types/xml2js": "^0.4.14"
+    "webpack-cli": "^5.0.0"
   }
 }
