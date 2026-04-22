@@ -53,8 +53,9 @@ export async function fetchFilingContent(url: string): Promise<string> {
   const response = await getRaw<string>(url, "text");
 
   const status = response.status;
+  const rawContentTypeHeader = response.headers?.["content-type"];
   const rawContentType: string | null =
-    response.headers?.["content-type"] ?? null;
+    typeof rawContentTypeHeader === "string" ? rawContentTypeHeader : null;
 
   if (status < 200 || status >= 300) {
     throw new FilingFetchError({
