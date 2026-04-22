@@ -26,12 +26,18 @@ export function filterFilingsByFormType(
   const count8K = filtered.filter(
     (filing) => normalizeFormType(filing.formType) === "8-K"
   ).length;
+  const count8KA = filtered.filter(
+    (filing) => normalizeFormType(filing.formType) === "8-K/A"
+  ).length;
   const countForm4 = filtered.filter(
     (filing) => normalizeFormType(filing.formType) === "4"
   ).length;
+  const countForm4A = filtered.filter(
+    (filing) => normalizeFormType(filing.formType) === "4/A"
+  ).length;
 
   console.log(
-    `Filtered ${filings.length} filings, kept ${filtered.length} (8-K: ${count8K}, Form 4: ${countForm4})`
+    `Filtered ${filings.length} filings, kept ${filtered.length} (8-K: ${count8K}, 8-K/A: ${count8KA}, Form 4: ${countForm4}, Form 4/A: ${countForm4A})`
   );
 
   return filtered;
