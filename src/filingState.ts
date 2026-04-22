@@ -70,7 +70,7 @@ export function setLastSeenId(id: string): void {
   }
 }
 
-export function filterNewFilings(filings: Filing[]): Filing[] {
+export function filterNewFilings<T extends Filing>(filings: T[]): T[] {
   const { lastSeenId, lastSeenAt } = readState();
   if (!lastSeenId) {
     return filings;
