@@ -12,6 +12,7 @@ const USER_AGENT = `who-is-buying-what/1.0 (${CONTACT_EMAIL})`;
 
 interface QueuedRequest<T> {
   url: string;
+  responseType: "text" | "json" | "arraybuffer";
   resolve: (response: AxiosResponse<T>) => void;
   reject: (error: unknown) => void;
 }
@@ -103,8 +104,9 @@ function drainQueue(): void {
       .get(item.url, {
         headers: {
           "User-Agent": USER_AGENT,
-          Accept: "application/json, application/xml, text/xml, */*",
+          Accept: "application/json, application/xml, text/html, text/plain, text/xml, */*",
         },
+        responseType: item.responseType,
         timeout: 15_000,
       })
       .then((response) => {
@@ -190,7 +192,7 @@ export async function get<T = unknown>(url: string): Promise<T> {
 
   while (attempt <= MAX_RETRIES) {
     try {
-      const response = await enqueueGet<T>(url);
+      const response = await enqueueGet<T>(url, "json");
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError;
