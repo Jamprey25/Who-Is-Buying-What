@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import type { AnyNode, Element, Text } from "domhandler";
+import type { AnyNode, Element, Text, Document } from "domhandler";
 
 // ~4 chars per token for English-heavy legal text; 12,000 tokens × 4 = 48,000.
 const MAX_CHARS = 48_000;
@@ -115,7 +115,7 @@ export function extractTextFromFiling(html: string): string {
   const root = $.root().get(0);
 
   if (root) {
-    for (const child of (root as cheerio.Element).children ?? []) {
+    for (const child of (root as Document).children ?? []) {
       collectText($, child, tokens);
     }
   }
