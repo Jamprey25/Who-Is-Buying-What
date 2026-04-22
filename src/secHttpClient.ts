@@ -118,10 +118,14 @@ function drainQueue(): void {
   scheduleDrain();
 }
 
-function enqueueGet<T>(url: string): Promise<AxiosResponse<T>> {
+function enqueueGet<T>(
+  url: string,
+  responseType: "text" | "json" | "arraybuffer" = "json"
+): Promise<AxiosResponse<T>> {
   return new Promise((resolve, reject) => {
     requestQueue.push({
       url,
+      responseType,
       resolve: resolve as (response: AxiosResponse<unknown>) => void,
       reject,
     });
@@ -144,6 +148,41 @@ function toErrorMessage(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : String(error);
+}
+
+export async function getRaw<T = unknown>(
+  url: string,
+  responseType: "text" | "json" | "arraybuffer" = "json"
+): Promise<AxiosResponse<T>> {
+  let attempt = 0;
+
+  while (attempt <= MAX_RETRIES) {
+    try {
+      const response = await enqueueGet<T>(url, responseType);
+      return response;
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      const status = axiosError.response?.status;
+      const canRetry = isRetryableStatus(status) && attempt < MAX_RETRIES;
+
+      if (!canRetry) {
+        throw new Error(`SEC request failed for ${url}: ${toErrorMessage(error)}`);
+      }
+
+      const retryAfterHeader = axiosError.response?.headers?.["retry-after"];
+      const retryAfterMs = parseRetryAfterMs(retryAfterHeader);
+      const exponentialDelayMs = Math.min(
+        RETRY_BASE_DELAY_MS * 2 ** attempt,
+        RETRY_MAX_DELAY_MS
+      );
+      const delayMs = retryAfterMs ?? exponentialDelayMs;
+
+      await sleep(delayMs);
+      attempt += 1;
+    }
+  }
+
+  throw new Error(`SEC request failed for ${url}: retry budget exhausted.`);
 }
 
 export async function get<T = unknown>(url: string): Promise<T> {
