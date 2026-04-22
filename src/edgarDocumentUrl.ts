@@ -82,10 +82,16 @@ export async function getPrimaryDocumentUrl(
   // so rebind to a const here to restore a narrowed string type.
   const resolvedHref: string = primaryHref;
 
+  // EDGAR often wraps primary documents in the Inline XBRL Viewer at
+  //   /ix?doc=/Archives/edgar/data/.../file.htm
+  // Fetching that URL returns a 6 KB iframe shell, not the filing. Unwrap
+  // to the underlying document path before building the absolute URL.
+  const unwrapped = resolvedHref.replace(/^\/?ix\?doc=/, "");
+
   // EDGAR hrefs are always root-relative ("/Archives/edgar/data/...")
-  const absoluteUrl = resolvedHref.startsWith("http")
-    ? resolvedHref
-    : `${EDGAR_BASE}${resolvedHref}`;
+  const absoluteUrl = unwrapped.startsWith("http")
+    ? unwrapped
+    : `${EDGAR_BASE}${unwrapped.startsWith("/") ? unwrapped : `/${unwrapped}`}`;
 
   return absoluteUrl;
 }
