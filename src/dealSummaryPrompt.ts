@@ -1,4 +1,10 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { type PaymentType } from "./detectPaymentType";
+import { type ExtractionResult } from "./validateExtractionResult";
+
+const MODEL = "claude-sonnet-4-20250514";
+const MAX_FILING_CHARS = 2_000;
+const MAX_TOKENS = 80;
 
 // ---------------------------------------------------------------------------
 // System prompt
@@ -92,6 +98,91 @@ function formatUsd(usd: number): string {
  * ];
  * const response = await claude({ system: DEAL_SUMMARY_SYSTEM_PROMPT, messages });
  */
+// ---------------------------------------------------------------------------
+// Response validation
+// ---------------------------------------------------------------------------
+
+function isSingleSentence(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    trimmed.length > 0 &&
+    !trimmed.includes("\n") &&
+    trimmed.endsWith(".")
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fallback template
+// ---------------------------------------------------------------------------
+
+function buildFallback(extraction: ExtractionResult): string {
+  const { acquirer, target, transactionValueUSD } = extraction;
+  if (transactionValueUSD !== null) {
+    return `${acquirer} acquires ${target} for ${formatUsd(transactionValueUSD)}.`;
+  }
+  return `${acquirer} acquires ${target}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Main export
+// ---------------------------------------------------------------------------
+
+/**
+ * Calls Claude to produce a one-sentence dashboard summary of an M&A deal.
+ * Falls back to a plain template if the API fails or returns an invalid response.
+ *
+ * Requires ANTHROPIC_API_KEY in the environment.
+ */
+export async function generateSummary(
+  extraction: ExtractionResult,
+  filingText: string
+): Promise<string> {
+  const client = new Anthropic();
+
+  const filingExcerpt = filingText.slice(0, MAX_FILING_CHARS);
+
+  const userMessage = buildDealSummaryUserMessage({
+    acquirer: extraction.acquirer,
+    target: extraction.target,
+    transactionValueUSD: extraction.transactionValueUSD,
+    paymentType: extraction.paymentType,
+    filingContext: filingExcerpt,
+  });
+
+  let raw: string;
+
+  try {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      system: DEAL_SUMMARY_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    const block = response.content[0];
+    raw = block.type === "text" ? block.text.trim() : "";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[${new Date().toISOString()}] generateSummary: Claude API error — ${message}. Using fallback.`
+    );
+    return buildFallback(extraction);
+  }
+
+  if (!isSingleSentence(raw)) {
+    console.warn(
+      `[${new Date().toISOString()}] generateSummary: Response failed sentence validation ("${raw.slice(0, 80)}"). Using fallback.`
+    );
+    return buildFallback(extraction);
+  }
+
+  return raw;
+}
+
+// ---------------------------------------------------------------------------
+// User message builder
+// ---------------------------------------------------------------------------
+
 export function buildDealSummaryUserMessage(input: DealSummaryInput): string {
   const { acquirer, target, transactionValueUSD, paymentType, filingContext } =
     input;
