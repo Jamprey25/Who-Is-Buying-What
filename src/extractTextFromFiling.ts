@@ -109,8 +109,6 @@ export function extractTextFromFiling(html: string): string {
   const $ = cheerio.load(html, {
     // xmlMode: false preserves HTML5 parsing semantics (void elements, etc.).
     xmlMode: false,
-    // Decode HTML entities automatically.
-    decodeEntities: true,
   });
 
   const tokens: string[] = [];
