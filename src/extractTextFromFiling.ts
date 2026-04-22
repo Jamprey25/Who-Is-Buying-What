@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import type { AnyNode, Element, Text } from "domhandler";
 
 // ~4 chars per token for English-heavy legal text; 12,000 tokens × 4 = 48,000.
 const MAX_CHARS = 48_000;
@@ -51,11 +52,11 @@ function isBlockElement(tagName: string): boolean {
 // second pass to reconstruct paragraph structure.
 function collectText(
   $: cheerio.CheerioAPI,
-  node: cheerio.AnyNode,
+  node: AnyNode,
   tokens: string[]
 ): void {
   if (node.type === "text") {
-    const text = (node as cheerio.Text).data ?? "";
+    const text = (node as Text).data ?? "";
     // Normalize internal whitespace in text nodes; outer collapse happens later.
     const normalized = text.replace(/[\t\r\f\v ]+/g, " ");
     if (normalized.trim()) {
@@ -66,7 +67,7 @@ function collectText(
 
   if (node.type !== "tag") return;
 
-  const el = node as cheerio.Element;
+  const el = node as Element;
   const tag = el.tagName?.toLowerCase() ?? "";
 
   if (shouldRemoveEntirely(tag)) return;
