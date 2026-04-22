@@ -455,7 +455,11 @@ The main pipeline entry point. When executed directly (`tsx src/index.ts`), it i
 | 3 | `extractFormType` | If the Atom `<category>` element is absent and the `<title>` starts with a number (e.g., `"4 - Company Name (0001234)"`), the regex `\b([A-Z0-9]+...)\b` matches digits only — returning `"4"` correctly, but any title starting with a lowercase word returns `"UNKNOWN"`. | Acceptable; allowlist filtering downstream discards `UNKNOWN`. |
 | 4 | `parsePublishedAt` | Month and year approximations (30d / 365d) will be wrong at boundaries. A news article "published 1 month ago" near a month boundary could be off by ±1–2 days. | Low impact: the 7-day news window means month/year articles are already excluded. |
 | 5 | `pollingScheduler` | `start()` fires `pollFn` immediately and synchronously on the event loop. If `pollFn` is very fast and `stop()` is called between the immediate run and the first `setInterval` tick, the timer is still cleared correctly. | Safe; `timer` is null-guarded in `stop()`. |
-| 6 | `setLastSeenId` | Writes are not atomic (no temp-file + rename). A crash mid-write could corrupt `state.json`. | Falls back gracefully to `null` on the next read (ENOENT / SyntaxError handling). |
+| 6 | `setLastSeenId` | ~~Writes are not atomic~~ **Fixed**: uses `writeFileSync` to a `.tmp` file followed by `renameSync`. `renameSync` is atomic at the OS level on Linux/macOS (POSIX `rename(2)` is guaranteed atomic within the same filesystem). | State file is now crash-safe. |
+| 7 | `classifyFiling` | Falls back to `{ classification: "OTHER", confidence: 0 }` on any Anthropic API error or Zod validation failure. This means a transient API outage causes all filings in that poll cycle to be silently classified as OTHER and skipped. | Acceptable for now; consider a retry queue for classification failures. |
+| 8 | `generateDealFingerprint` | If the acquirer and target names are very short after normalisation (e.g., both are single-word acronyms with the same value bucket and year), hash collisions between unrelated deals become more likely. This is bounded: SHA-256 has 2^256 possible values; a collision between two real deals is astronomically unlikely. The concern is normalisation collisions (two companies that normalize to the same string). | Monitored by `logFingerprintCollision` in `pipelineLogger.ts`. |
+| 9 | `resolveTickerYahoo` | Yahoo Finance's unofficial API has no documented rate limit, uptime SLA, or versioning contract. It can return 429 or change response shape without notice. | Both lookup functions are wrapped in `try/catch` and return `null` on failure — a missing ticker never blocks the pipeline. |
+| 10 | `upsertDeal` | The two-query SELECT → INSERT/UPDATE has a TOCTOU race: if two pipeline instances run concurrently and both see "no existing row", both will attempt INSERT and one will get a `23505` (unique violation). | The `catch` block on `insertDeal` checks for error code `23505` and retries as an UPDATE. Safe for the current single-process architecture; a distributed lock would be needed if running multiple instances. |
 
 ---
 
@@ -491,3 +495,21 @@ A token bucket refills at a fixed rate and allows short bursts up to capacity; t
 ### Additive Scoring Heuristics
 
 `scoreNewsRelevance` is a hand-weighted linear classifier — not a trained model. This is a deliberate engineering tradeoff: interpretable, zero-latency, no training data required. The practical downside is that weights are fixed and may not generalize well. A future improvement could replace this with a logistic regression or lightweight embedding similarity once labelled ground-truth data is collected.
+
+### LLM Output as an Untrusted Data Source
+
+`extractEntities` treats every Claude response as **untrusted user input**. This is the same mental model you'd apply to SQL injection prevention: never assume the shape or content of the response. The Zod `safeParse` call is the type boundary — only validated data crosses it. If validation fails, the pipeline discards the filing rather than propagating malformed data downstream.
+
+**Big-O for the extraction pipeline:**
+- `classifyFiling`: O(n) network I/O where n = text length (dominated by HTTP roundtrip, not parsing). The Zod validation of a 3-field JSON object is O(1).
+- `extractEntities`: Same asymptotic profile. The JSON parse itself is O(k) where k = response JSON length (always bounded by `max_tokens = 512`).
+
+### SHA-256 Fingerprinting as a Bloom Filter Substitute
+
+`generateDealFingerprint` uses a **cryptographic hash** (SHA-256) rather than a probabilistic Bloom filter. The trade-off: SHA-256 gives a 0% false-positive rate at the cost of O(n) storage in the DB (one row per unique fingerprint vs. a fixed-size Bloom filter). For the expected volume (hundreds of acquisitions per year, not millions), a unique index in PostgreSQL is strictly better — it's exact, inspectable, and supports `ON CONFLICT` upsert semantics natively.
+
+### Structural Subtyping and the PipelineDeal Contract
+
+`PipelineDeal extends DealRecord` is an example of **structural subtyping** (TypeScript's core type system). Because `PipelineDeal` has every field `DealRecord` has (plus more), any function that accepts `DealRecord` will also accept `PipelineDeal` without a cast. This is the Liskov Substitution Principle (LSP) applied at the type level: the subtype can appear wherever the supertype is expected without breaking callers.
+
+**Challenge:** Add a `dealPremiumPct` field to `PipelineDeal` that computes `(transactionValueUSD - targetMarketCap) / targetMarketCap * 100`. What should it be when either input is `null`? How would you propagate this to the Discord embed?
