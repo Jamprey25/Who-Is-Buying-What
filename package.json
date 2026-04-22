@@ -16,6 +16,7 @@
     "@tailwindcss/postcss": "^4.2.4",
     "autoprefixer": "^10.5.0",
     "axios": "^1.15.2",
+    "cheerio": "^1.2.0",
     "ioredis": "^5.10.1",
     "next": "^16.2.4",
     "pg": "^8.20.0",
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/xml2js": "^0.4.14",
