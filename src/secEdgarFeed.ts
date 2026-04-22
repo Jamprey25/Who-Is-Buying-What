@@ -37,6 +37,10 @@ export interface DealRecord {
   flags: string[];
   createdAt: Date;
   updatedAt: Date;
+  /** Set after payment-type extraction; absent when extraction has not run yet. */
+  paymentType?: import("./detectPaymentType").PaymentType;
+  /** Set after deal-metrics calculation; absent when metrics have not run yet. */
+  dealSizeCategory?: import("./calculateDealMetrics").DealSizeCategory;
 }
 
 /**
