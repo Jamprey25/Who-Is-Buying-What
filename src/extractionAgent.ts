@@ -83,19 +83,16 @@ No preamble, no markdown, no explanation outside the JSON.`.trim();
 export async function classifyFiling(
   text: string
 ): Promise<FilingClassificationResult> {
-  const client = new Anthropic();
-  const truncated = text.slice(0, MAX_TEXT_CHARS);
+  const truncated = text.slice(0, CLASSIFY_MAX_CHARS);
 
   try {
-    const response = await client.messages.create({
-      model: HAIKU_MODEL,
-      max_tokens: 256,
+    const raw = await complete({
+      purpose: "classify",
       system: CLASSIFICATION_SYSTEM,
-      messages: [{ role: "user", content: truncated }],
+      user: truncated,
+      maxTokens: 256,
+      json: true,
     });
-
-    const block = response.content[0];
-    const raw = block.type === "text" ? block.text.trim() : "";
 
     const parsed = ClassificationSchema.safeParse(JSON.parse(raw));
     if (parsed.success) {
@@ -173,28 +170,74 @@ No preamble, no markdown, no explanation outside the JSON.`.trim();
 export async function extractEntities(
   text: string
 ): Promise<EntityExtractionResult> {
-  const client = new Anthropic();
-  const truncated = text.slice(0, MAX_TEXT_CHARS);
+  const truncated = text.slice(0, EXTRACT_MAX_CHARS);
 
-  const response = await client.messages.create({
-    model: SONNET_MODEL,
-    max_tokens: 512,
+  // Primary pass — default provider/model from llmClient (usually Haiku
+  // or local Ollama, both ~15× cheaper than Sonnet).
+  const primary = await complete({
+    purpose: "extract",
     system: EXTRACTION_SYSTEM,
-    messages: [{ role: "user", content: truncated }],
+    user: truncated,
+    maxTokens: 512,
+    json: true,
   });
 
-  const block = response.content[0];
-  const raw = block.type === "text" ? block.text.trim() : "";
+  const firstAttempt = tryParseEntity(primary);
+  if (firstAttempt.success) return firstAttempt.data;
 
-  const parsed = EntitySchema.safeParse(JSON.parse(raw));
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map(e => `${e.path.join(".")}: ${e.message}`)
-      .join("; ");
-    throw new Error(`[extractEntities] Zod validation failed — ${issues}`);
+  // Anthropic-only: on validation failure, retry once with Sonnet.
+  // Small models occasionally produce slightly malformed JSON on edge cases;
+  // the Sonnet retry costs ~$0.04 but only fires for the 5-10% of filings
+  // Haiku botches, keeping the amortised cost near Haiku's.
+  const provider = resolvedProvider("extract");
+  if (provider === "anthropic") {
+    logger.warn(
+      { firstAttemptErrors: firstAttempt.issues, rawPreview: primary.slice(0, 240) },
+      "[extractEntities] Primary extraction failed Zod — retrying with fallback model"
+    );
+
+    const retry = await complete({
+      purpose: "extract",
+      system: EXTRACTION_SYSTEM,
+      user: truncated,
+      maxTokens: 512,
+      json: true,
+      modelOverride: anthropicFallbackExtractModel(),
+    });
+
+    const retryAttempt = tryParseEntity(retry);
+    if (retryAttempt.success) return retryAttempt.data;
+
+    throw new Error(
+      `[extractEntities] Both primary and fallback extraction failed Zod — ${retryAttempt.issues}`
+    );
   }
 
-  return parsed.data;
+  throw new Error(
+    `[extractEntities] Zod validation failed — ${firstAttempt.issues}`
+  );
+}
+
+type EntityParseAttempt =
+  | { success: true; data: EntityExtractionResult }
+  | { success: false; issues: string };
+
+function tryParseEntity(raw: string): EntityParseAttempt {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, issues: `JSON.parse failed: ${msg}` };
+  }
+
+  const parsed = EntitySchema.safeParse(json);
+  if (parsed.success) return { success: true, data: parsed.data };
+
+  const issues = parsed.error.issues
+    .map((e) => `${e.path.join(".")}: ${e.message}`)
+    .join("; ");
+  return { success: false, issues };
 }
 
 // ─── Confidence scoring ───────────────────────────────────────────────────────

@@ -1,8 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { type PaymentType } from "./detectPaymentType";
 import { type ExtractionResult } from "./validateExtractionResult";
+import { complete } from "./llmClient";
 
-const MODEL = "claude-sonnet-4-20250514";
 const MAX_FILING_CHARS = 2_000;
 const MAX_TOKENS = 80;
 
