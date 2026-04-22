@@ -14,5 +14,8 @@ node_modules/
 # Polling state (runtime data)
 data/
 
+# LLM response disk cache (dev-only, opt-in via LLM_CACHE=1)
+.cache/
+
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
