@@ -1,4 +1,4 @@
-import { DealRecord } from "./types";
+import { DealRecord } from "./secEdgarFeed";
 import { MarketCapSnapshot } from "./fetchMarketCaps";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
