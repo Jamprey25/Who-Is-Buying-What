@@ -9,22 +9,31 @@
  *   4. scoreConfidence  — aggregate quality score with penalty flags
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { logger } from "./pipelineLogger";
 import { scoreConfidence as baseScoreConfidence } from "./scoreConfidence";
 import type { ConfidenceScore } from "./scoreConfidence";
+import {
+  complete,
+  resolvedProvider,
+  anthropicFallbackExtractModel,
+} from "./llmClient";
 
 // ─── Re-export generateSummary for pipeline convenience ──────────────────────
 export { generateSummary } from "./dealSummaryPrompt";
 
-// ─── Model constants ─────────────────────────────────────────────────────────
+// ─── Truncation budget (tiered) ──────────────────────────────────────────────
+//
+// Different purposes need different context windows. Smaller windows →
+// dramatically cheaper LLM calls (input tokens dominate cost for extraction).
+//
+//   classify — only needs the first few paragraphs to decide "M&A or not".
+//   extract  — needs deal terms, payment type, closing date, parties.
+//              These usually appear in the first ~20 KB (items 1.01/2.01),
+//              before the exhibits.
 
-const HAIKU_MODEL  = "claude-haiku-4-5-20251001";
-const SONNET_MODEL = "claude-sonnet-4-6";
-
-// Maximum chars of filing text sent to the LLM (≈ 12 k tokens at ~4 chars/token)
-const MAX_TEXT_CHARS = 48_000;
+const CLASSIFY_MAX_CHARS = 3_000;
+const EXTRACT_MAX_CHARS  = 20_000;
 
 // ─── Classification ───────────────────────────────────────────────────────────
 
