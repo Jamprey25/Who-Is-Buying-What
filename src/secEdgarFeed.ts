@@ -9,7 +9,9 @@ if (!process.env.SERPAPI_KEY) {
 }
 
 const SEC_EDGAR_8K_ATOM_URL =
-  "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom";
+  "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&output=atom";
+
+const DEFAULT_FILING_COUNT = 40;
 
 export interface EdgarFiling {
   accessionNumber: string;
@@ -345,12 +347,16 @@ export async function searchDealNews(
 }
 
 export async function fetchCurrent8kFilings(
-  url: string = SEC_EDGAR_8K_ATOM_URL
+  url: string = SEC_EDGAR_8K_ATOM_URL,
+  options: { count?: number } = {}
 ): Promise<EdgarFiling[]> {
+  const feedUrl = new URL(url);
+  feedUrl.searchParams.set("count", String(options.count ?? DEFAULT_FILING_COUNT));
+
   let xml: string;
 
   try {
-    const response = await axios.get<string>(url, {
+    const response = await axios.get<string>(feedUrl.toString(), {
       timeout: 15_000,
       headers: {
         Accept: "application/atom+xml, application/xml;q=0.9, */*;q=0.8",
