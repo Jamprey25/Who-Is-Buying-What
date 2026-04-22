@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
+import { withRetry, isRetryableError } from "./withRetry";
 
 const MAX_REQUESTS_PER_SECOND = 8;
 const RETRY_BASE_DELAY_MS = 1_000;
@@ -152,69 +153,29 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const SEC_RETRY_OPTIONS = {
+  maxRetries: MAX_RETRIES,
+  baseDelayMs: RETRY_BASE_DELAY_MS,
+  maxDelayMs: RETRY_MAX_DELAY_MS,
+  shouldRetry: isRetryableError,
+};
+
 export async function getRaw<T = unknown>(
   url: string,
   responseType: "text" | "json" | "arraybuffer" = "json"
 ): Promise<AxiosResponse<T>> {
-  let attempt = 0;
-
-  while (attempt <= MAX_RETRIES) {
-    try {
-      const response = await enqueueGet<T>(url, responseType);
-      return response;
-    } catch (error) {
-      const axiosError = error as AxiosError;
-      const status = axiosError.response?.status;
-      const canRetry = isRetryableStatus(status) && attempt < MAX_RETRIES;
-
-      if (!canRetry) {
-        throw new Error(`SEC request failed for ${url}: ${toErrorMessage(error)}`);
-      }
-
-      const retryAfterHeader = axiosError.response?.headers?.["retry-after"];
-      const retryAfterMs = parseRetryAfterMs(retryAfterHeader);
-      const exponentialDelayMs = Math.min(
-        RETRY_BASE_DELAY_MS * 2 ** attempt,
-        RETRY_MAX_DELAY_MS
-      );
-      const delayMs = retryAfterMs ?? exponentialDelayMs;
-
-      await sleep(delayMs);
-      attempt += 1;
-    }
-  }
-
-  throw new Error(`SEC request failed for ${url}: retry budget exhausted.`);
+  return withRetry(
+    () => enqueueGet<T>(url, responseType),
+    SEC_RETRY_OPTIONS
+  );
 }
 
 export async function get<T = unknown>(url: string): Promise<T> {
-  let attempt = 0;
-
-  while (attempt <= MAX_RETRIES) {
-    try {
+  return withRetry(
+    async () => {
       const response = await enqueueGet<T>(url, "json");
       return response.data;
-    } catch (error) {
-      const axiosError = error as AxiosError;
-      const status = axiosError.response?.status;
-      const canRetry = isRetryableStatus(status) && attempt < MAX_RETRIES;
-
-      if (!canRetry) {
-        throw new Error(`SEC request failed for ${url}: ${toErrorMessage(error)}`);
-      }
-
-      const retryAfterHeader = axiosError.response?.headers?.["retry-after"];
-      const retryAfterMs = parseRetryAfterMs(retryAfterHeader);
-      const exponentialDelayMs = Math.min(
-        RETRY_BASE_DELAY_MS * 2 ** attempt,
-        RETRY_MAX_DELAY_MS
-      );
-      const delayMs = retryAfterMs ?? exponentialDelayMs;
-
-      await sleep(delayMs);
-      attempt += 1;
-    }
-  }
-
-  throw new Error(`SEC request failed for ${url}: retry budget exhausted.`);
+    },
+    SEC_RETRY_OPTIONS
+  );
 }
