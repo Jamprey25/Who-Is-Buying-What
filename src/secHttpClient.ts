@@ -31,33 +31,12 @@ function resolveContactEmail(): string {
   return DEFAULT_CONTACT_EMAIL;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function pruneTimestamps(now: number): void {
   while (requestTimestamps.length > 0 && now - requestTimestamps[0] >= 1_000) {
     requestTimestamps.shift();
   }
 }
 
-function parseRetryAfterMs(value: unknown): number | null {
-  if (typeof value !== "string" || value.length === 0) {
-    return null;
-  }
-
-  const seconds = Number(value);
-  if (!Number.isNaN(seconds) && seconds >= 0) {
-    return Math.min(seconds * 1_000, RETRY_MAX_DELAY_MS);
-  }
-
-  const retryDateMs = Date.parse(value);
-  if (Number.isNaN(retryDateMs)) {
-    return null;
-  }
-
-  return Math.max(0, Math.min(retryDateMs - Date.now(), RETRY_MAX_DELAY_MS));
-}
 
 function scheduleDrain(): void {
   if (drainTimer) {
@@ -136,22 +115,6 @@ function enqueueGet<T>(
   });
 }
 
-function isRetryableStatus(status: number | undefined): boolean {
-  return status === 429 || status === 503;
-}
-
-function toErrorMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) {
-    const status = error.response?.status;
-    const statusText = error.response?.statusText;
-    if (status) {
-      return `HTTP ${status}${statusText ? ` ${statusText}` : ""}`;
-    }
-    return error.message;
-  }
-
-  return error instanceof Error ? error.message : String(error);
-}
 
 const SEC_RETRY_OPTIONS = {
   maxRetries: MAX_RETRIES,
