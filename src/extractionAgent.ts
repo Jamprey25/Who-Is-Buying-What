@@ -94,7 +94,7 @@ export async function classifyFiling(
     }
 
     logger.warn(
-      { validationErrors: parsed.error.errors, raw },
+      { validationErrors: parsed.error.issues, raw },
       "[classifyFiling] Zod validation failed — defaulting to OTHER"
     );
   } catch (err) {
@@ -179,7 +179,7 @@ export async function extractEntities(
 
   const parsed = EntitySchema.safeParse(JSON.parse(raw));
   if (!parsed.success) {
-    const issues = parsed.error.errors
+    const issues = parsed.error.issues
       .map(e => `${e.path.join(".")}: ${e.message}`)
       .join("; ");
     throw new Error(`[extractEntities] Zod validation failed — ${issues}`);

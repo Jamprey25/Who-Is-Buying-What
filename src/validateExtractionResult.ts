@@ -53,7 +53,7 @@ export function validateExtractionResult(
     return { ...result.data, isValid: true };
   }
 
-  const errors = result.error.errors.map((issue) => ({
+  const errors = result.error.issues.map((issue) => ({
     field: issue.path.join(".") || "(root)",
     message: issue.message,
   }));
