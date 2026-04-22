@@ -1,5 +1,9 @@
 {
+  "name": "who-is-buying-what",
+  "version": "1.0.0",
   "scripts": {
+    "test": "jest",
+    "build": "webpack --mode production",
     "auto-commit:start": "bash ./scripts/auto-commit.sh start",
     "auto-commit:stop": "bash ./scripts/auto-commit.sh stop",
     "auto-commit:status": "bash ./scripts/auto-commit.sh status"
@@ -9,19 +13,9 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "@types/xml2js": "^0.4.14"
-  }
-}
-{
-  "name": "who-is-buying-what",
-  "version": "1.0.0",
-  "scripts": {
-    "test": "jest",
-    "build": "webpack --mode production"
-  },
-  "devDependencies": {
     "jest": "^29.0.0",
     "webpack": "^5.0.0",
-    "webpack-cli": "^5.0.0"
+    "webpack-cli": "^5.0.0",
+    "@types/xml2js": "^0.4.14"
   }
 }
