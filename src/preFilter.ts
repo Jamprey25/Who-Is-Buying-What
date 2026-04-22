@@ -65,6 +65,17 @@ const NEGATIVE_SIGNALS: RegExp[] = [
 
 const SCAN_WINDOW_CHARS = 8_000;
 
+/**
+ * True if the filing head contains any strong M&A vocabulary.
+ * Exported for use by classifyFiling when small local models return
+ * non-schema labels (e.g. "Financial Information") despite JSON mode.
+ */
+export function hasMaSignals(text: string): boolean {
+  if (!text || !text.trim()) return false;
+  const head = text.slice(0, SCAN_WINDOW_CHARS);
+  return POSITIVE_SIGNALS.some((pattern) => pattern.test(head));
+}
+
 export function preFilterFiling(text: string): PreFilterVerdict {
   if (!text || !text.trim()) return "UNCERTAIN";
 
