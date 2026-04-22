@@ -25,6 +25,34 @@ export interface ExtractionResult {
   target: string;
 }
 
+export interface DealRecord {
+  id: string;
+  fingerprint: string;
+  acquirer: string;
+  target: string;
+  announcedAt: Date;
+  sourceUrl: string;
+  transactionValueUSD: number | null;
+  amendmentCount: number;
+  flags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Wire-safe shape sent to Socket.io clients.
+ * Internal fields (fingerprint, flags, amendmentCount, createdAt, updatedAt)
+ * are intentionally omitted.
+ */
+export interface PublicDealEvent {
+  id: string;
+  acquirer: string;
+  target: string;
+  announcedAt: string;
+  sourceUrl: string;
+  transactionValueUSD: number | null;
+}
+
 interface AtomLink {
   $?: {
     href?: string;

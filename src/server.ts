@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { parse } from "node:url";
 import next from "next";
 import { Server } from "socket.io";
+import type { DealRecord, PublicDealEvent } from "./secEdgarFeed";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOST ?? "localhost";
@@ -15,6 +16,32 @@ export function getIO(): Server {
     throw new Error("Socket.io has not been initialised yet. Call getIO() after the server has started.");
   }
   return io;
+}
+
+const BILLION = 1_000_000_000;
+
+export function broadcastNewAcquisition(deal: DealRecord): void {
+  const server = getIO();
+
+  const event: PublicDealEvent = {
+    id: deal.id,
+    acquirer: deal.acquirer,
+    target: deal.target,
+    announcedAt: deal.announcedAt.toISOString(),
+    sourceUrl: deal.sourceUrl,
+    transactionValueUSD: deal.transactionValueUSD,
+  };
+
+  server.emit("new_acquisition", event);
+
+  if (deal.transactionValueUSD !== null && deal.transactionValueUSD > BILLION) {
+    server.to("billion_dollar_club").emit("new_acquisition", event);
+  }
+
+  const clientCount = server.engine.clientsCount;
+  console.log(
+    `[broadcast] new_acquisition id=${deal.id} acquirer="${deal.acquirer}" target="${deal.target}" clients=${clientCount}`
+  );
 }
 
 async function main(): Promise<void> {
