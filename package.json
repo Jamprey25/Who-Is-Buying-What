@@ -2,8 +2,8 @@
   "name": "who-is-buying-what",
   "version": "1.0.0",
   "scripts": {
-    "dev": "tsx src/server.ts",
-    "start": "NODE_ENV=production tsx src/server.ts",
+    "dev": "tsx src/index.ts",
+    "start": "NODE_ENV=production tsx src/index.ts",
     "build": "next build",
     "test": "jest",
     "test:pipeline": "vitest run tests/notificationPipeline.test.ts",
