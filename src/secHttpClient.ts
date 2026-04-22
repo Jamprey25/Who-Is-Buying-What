@@ -148,4 +148,23 @@ export function createSecHttpClient(): SecHttpClient {
 }
 
 // Module-level singleton — existing callers import { get, getRaw } unchanged.
-export const { get, getRaw } = createSecHttpClient();
+let _instance = createSecHttpClient();
+
+/**
+ * Replace the module-level singleton with a fresh client instance.
+ * Exported exclusively for test isolation; never call in production code.
+ */
+export function _resetForTests(): void {
+  _instance = createSecHttpClient();
+}
+
+export function get<T = unknown>(url: string): Promise<T> {
+  return _instance.get<T>(url);
+}
+
+export function getRaw<T = unknown>(
+  url: string,
+  responseType?: "text" | "json" | "arraybuffer"
+): Promise<AxiosResponse<T>> {
+  return _instance.getRaw<T>(url, responseType);
+}
