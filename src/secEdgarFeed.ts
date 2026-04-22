@@ -260,6 +260,7 @@ function parsePublishedAt(rawDate: string | undefined): Date | null {
 
   const relativeMatch = value.match(/^(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago$/i);
   if (!relativeMatch) {
+    console.warn(`[parsePublishedAt] Unrecognised date format: "${value}"`);
     return null;
   }
 
