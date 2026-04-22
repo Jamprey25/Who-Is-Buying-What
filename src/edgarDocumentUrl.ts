@@ -78,10 +78,14 @@ export async function getPrimaryDocumentUrl(
     );
   }
 
+  // TypeScript cannot track mutations made inside the cheerio .each() callback,
+  // so rebind to a const here to restore a narrowed string type.
+  const resolvedHref: string = primaryHref;
+
   // EDGAR hrefs are always root-relative ("/Archives/edgar/data/...")
-  const absoluteUrl = primaryHref.startsWith("http")
-    ? primaryHref
-    : `${EDGAR_BASE}${primaryHref}`;
+  const absoluteUrl = resolvedHref.startsWith("http")
+    ? resolvedHref
+    : `${EDGAR_BASE}${resolvedHref}`;
 
   return absoluteUrl;
 }
