@@ -2,8 +2,10 @@
   "name": "who-is-buying-what",
   "version": "1.0.0",
   "scripts": {
+    "dev": "tsx src/server.ts",
+    "start": "NODE_ENV=production tsx src/server.ts",
+    "build": "next build",
     "test": "jest",
-    "build": "webpack --mode production",
     "auto-commit:start": "bash ./scripts/auto-commit.sh start",
     "auto-commit:stop": "bash ./scripts/auto-commit.sh stop",
     "auto-commit:status": "bash ./scripts/auto-commit.sh status"
@@ -23,6 +25,7 @@
     "@types/xml2js": "^0.4.14",
     "jest": "^29.0.0",
     "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
     "webpack": "^5.0.0",
     "webpack-cli": "^5.0.0"
   }
