@@ -376,6 +376,76 @@ npm run auto-commit:status
 
 ---
 
+## 4b. New Modules — Phases 2–4
+
+### 4b.1 `extractionAgent.ts` (Phase 2)
+
+| Export | Model | Description |
+|--------|-------|-------------|
+| `classifyFiling(text)` | `claude-haiku-4-5-20251001` | Returns `{ classification, confidence, reasoning }`. Falls back to `OTHER` on any API or Zod validation failure — never throws. |
+| `extractEntities(text)` | `claude-sonnet-4-6` | Returns `EntityExtractionResult` validated with Zod. Throws on validation failure (caller decides whether to skip or retry). |
+| `generateSummary` | `claude-sonnet-4-20250514` | Re-export from `dealSummaryPrompt.ts`. Returns ≤30-word sentence; falls back to a template string on API failure. |
+| `scoreConfidence(extraction, classification)` | — | Adapts `FilingClassificationResult` → `ClassificationResult` and delegates to `scoreConfidence.ts`. Returns `{ overall, flags, requiresReview }`. |
+
+**Prompt engineering notes:**
+- Classification uses a `system` prompt with explicit category definitions and a strict JSON-only output constraint. Claude Haiku is chosen for cost/speed: the classification decision is binary and doesn't require the deeper reasoning of Sonnet.
+- Entity extraction uses a `system` prompt that forbids invented data and requires `null` for unknowns. All LLM output is passed through `z.safeParse` before any field is read — raw Claude output is never trusted structurally.
+- `MAX_TEXT_CHARS = 48_000` (≈ 12k tokens) prevents exceeding context windows while covering the typical 8-K body.
+
+### 4b.2 `enrichmentAgent.ts` (Phase 3)
+
+| Export | Description |
+|--------|-------------|
+| `resolveTickerYahoo(name)` | Hits `query2.finance.yahoo.com/v1/finance/search`. Prefers `quoteType === "EQUITY"` quotes. Never throws; returns `null` on error. |
+| `fetchMarketCapYahoo(symbol)` | Hits `query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules=summaryDetail`. Returns `{ marketCap, price, snapshotAt }`. Never throws; `marketCap` and `price` are `null` on error. |
+| `generateDealFingerprint(input)` | SHA-256 of `normalised(acquirer) \| normalised(target) \| valueBucket \| year`. Value bucketing prevents minor revisions ($4.1B → $4.2B) from creating duplicate records. |
+| `mergeAmendment(original, amendment)` | Folds non-null amendment fields into the original. Increments `amendmentCount`; sets `amendedAt` to the amendment's `announcedAt`. Never overwrites `id`, `fingerprint`, or original `announcedAt`. |
+| `searchDealNews` | Re-export from `secEdgarFeed.ts`. |
+
+**Why Yahoo Finance instead of FMP?**
+Yahoo's unofficial search and quoteSummary endpoints are free and don't require an API key. They are undocumented but stable enough for best-effort enrichment. The entire lookup is wrapped in `try/catch` and yields `null` on failure — a missing ticker never blocks the pipeline.
+
+**Fingerprint design:**
+The hash intentionally uses a value *bucket* (not the exact value) and company name *normalisation* (strips legal suffixes like "Inc", "Corp"). This means:
+- A $4.1B deal later revised to $4.2B → same fingerprint → UPDATE, not INSERT
+- "Apple Inc." and "Apple" → same fingerprint
+- Two unrelated $500M deals by the same acquirer in the same year → same bucket → this is a known false-collision risk mitigated by including the target name in the hash
+
+### 4b.3 `distributionAgent.ts` (Phase 4)
+
+| Export | Description |
+|--------|-------------|
+| `upsertDeal(deal)` | Two-query PostgreSQL upsert: SELECT → decide → INSERT or UPDATE. Returns `inserted \| updated \| skipped`. |
+| `broadcastNewAcquisition` | Re-export from `server.ts`. Emits `new_acquisition` to all clients; additionally emits to `billion_dollar_club` room if `transactionValueUSD > $1B`. |
+| `shouldAlert / recordAlert` | Re-export from `notificationConfig.ts`. Threshold gating + per-acquirer cooldown. |
+| `sendDiscordAlert` | Re-export from `sendDiscordAlert.ts`. Colour-coded embed (green=CASH, blue=STOCK, purple=MIXED). Handles 429 with `withRetry`. |
+| `sendEmailAlert` | Re-export from `sendEmailAlert.ts`. Resend SDK, HTML table layout. |
+
+**Upsert decision matrix:**
+```
+fingerprint not in DB  → INSERT  → "inserted"
+fingerprint in DB AND incoming confidence > stored
+                       → UPDATE  → "updated"
+fingerprint in DB AND incoming amendment_count > stored
+                       → UPDATE  → "updated"
+fingerprint in DB AND neither condition met
+                       → no write → "skipped"
+```
+The two-query approach (not a single `ON CONFLICT ... WHERE`) gives explicit control over the skip decision and enables detailed logging of why a record was skipped.
+
+**PostgreSQL pool:**
+A `pg.Pool` singleton is lazily created on first call to `upsertDeal`. Pool size is capped at 5 connections — the pipeline is single-process and single-goroutine, so 5 is generous. The pool emits `error` events for idle client failures; these are logged but do not crash the process.
+
+### 4b.4 `pipelineTypes.ts`
+
+`PipelineDeal` extends `DealRecord` (from `secEdgarFeed.ts`) and promotes the optional `paymentType` and `dealSizeCategory` fields to required. This makes `PipelineDeal` a structural supertype of `DealRecord`, so it can be passed directly to all existing helpers (`shouldAlert`, `sendDiscordAlert`, `sendEmailAlert`, `broadcastNewAcquisition`) without any adapter.
+
+### 4b.5 `src/index.ts`
+
+The main pipeline entry point. When executed directly (`tsx src/index.ts`), it imports `server.ts` (which starts the Next.js + Socket.io server as a side effect) and waits 5 seconds before starting the polling scheduler (to let the HTTP server finish binding). When imported as a module, it exports `startPipeline()` and `stopPipeline()` for programmatic control.
+
+---
+
 ## 10. Known Edge Cases & Gotchas
 
 | # | Location | Scenario | Current Behaviour |
