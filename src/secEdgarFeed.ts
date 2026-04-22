@@ -1,6 +1,13 @@
 import axios from "axios";
 import { parseStringPromise } from "xml2js";
 
+if (!process.env.SERPAPI_KEY) {
+  console.warn(
+    "[secEdgarFeed] SERPAPI_KEY is not set. " +
+      "News enrichment is DISABLED. Deals will have no corroboration source."
+  );
+}
+
 const SEC_EDGAR_8K_ATOM_URL =
   "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&dateb=&owner=include&count=40&output=atom";
 
