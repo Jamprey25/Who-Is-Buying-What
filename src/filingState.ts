@@ -54,9 +54,13 @@ export function setLastSeenId(id: string): void {
 
   const state: FilingState = { lastSeenId: id };
 
+  const dir = path.dirname(STATE_FILE_PATH);
+  const tmp = STATE_FILE_PATH + ".tmp";
+
   try {
-    fs.mkdirSync(path.dirname(STATE_FILE_PATH), { recursive: true });
-    fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(state, null, 2), "utf-8");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2), "utf-8");
+    fs.renameSync(tmp, STATE_FILE_PATH);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to persist SEC filing state: ${message}`);
