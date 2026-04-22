@@ -1,4 +1,4 @@
-const DEFAULT_ALLOWLIST = ["8-K", "4"] as const;
+const DEFAULT_ALLOWLIST = ["8-K", "8-K/A", "4", "4/A"] as const;
 
 export interface Filing {
   accessionNumber: string;
