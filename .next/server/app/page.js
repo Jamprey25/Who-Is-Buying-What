@@ -1,0 +1,13 @@
+var R=require("../chunks/ssr/[turbopack]_runtime.js")("server/app/page.js")
+R.c("server/chunks/ssr/[root-of-the-server]__08uf1d5._.js")
+R.c("server/chunks/ssr/0lq1_next_dist_esm_build_templates_app-page_0gkc7d7.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0_7h58f._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0js~v4c._.js")
+R.c("server/chunks/ssr/Desktop_coding projects_Who-Is-Buying-What_app_layout_tsx_049j7ns._.js")
+R.c("server/chunks/ssr/0lq1_next_dist_client_components_11lx6qb._.js")
+R.c("server/chunks/ssr/0lq1_next_dist_client_components_builtin_forbidden_0a8pzho.js")
+R.c("server/chunks/ssr/0lq1_next_dist_client_components_builtin_unauthorized_0o1evbm.js")
+R.c("server/chunks/ssr/0lq1_next_dist_client_components_builtin_global-error_0zozcv9.js")
+R.c("server/chunks/ssr/0x9b_Who-Is-Buying-What__next-internal_server_app_page_actions_00c-dr~.js")
+R.m(70629)
+module.exports=R.m(70629).exports
