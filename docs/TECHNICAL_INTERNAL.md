@@ -186,8 +186,10 @@ Maximum possible raw score: 1.10. Clamped to `1.0` via `Math.min(1, score)`.
 |--------|-----------|--------------|
 | `getLastSeenId` | `() → string \| null` | Reads `data/state.json` |
 | `setLastSeenId` | `(id: string) → void` | Writes `data/state.json`; throws on failure |
-| `filterNewFilings` | `(filings: Filing[]) → Filing[]` | Pure filter driven by `getLastSeenId` |
-| `Filing` | interface | `{ accessionNumber: string }` |
+| `filterNewFilings` | `<T extends Filing>(filings: T[]) → T[]` | Pure filter driven by `getLastSeenId`; **generic** preserves caller's concrete type (e.g. `EdgarFiling`). |
+| `Filing` | interface | `{ accessionNumber: string }` — minimum structural contract |
+
+**Type Preservation (generic signature):** `filterNewFilings` is parameterised over `T extends Filing` so that passing in `EdgarFiling[]` returns `EdgarFiling[]`, not the narrower `Filing[]`. Before this change, downstream consumers like `filterFilingsByFormType` (which requires `formType`, `cik`, `filingUrl`, etc.) received type-erased values and failed to compile. The generic expresses exactly what the function needs (`accessionNumber` for cursor comparison) and preserves everything else the caller knows — the identity-preserving-generic pattern used by `Array.prototype.filter`.
 
 **`filterNewFilings` algorithm:**
 
