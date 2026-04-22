@@ -3,6 +3,7 @@ export type PollFn = () => Promise<void> | void;
 export interface PollingSchedulerOptions {
   intervalMs?: number;
   logger?: (message: string) => void;
+  onError?: (err: unknown) => void;
 }
 
 export interface PollingScheduler {
@@ -36,7 +37,8 @@ export function createPollingScheduler(
       log(`[${new Date().toISOString()}] Poll attempt completed.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      log(`[${new Date().toISOString()}] Poll attempt failed: ${message}`);
+      console.error(`[pollingScheduler] Poll attempt failed: ${message}`);
+      options.onError?.(error);
     } finally {
       isRunning = false;
     }
