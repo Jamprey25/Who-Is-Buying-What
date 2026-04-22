@@ -21,6 +21,7 @@
 8. [Configuration & Environment Variables](#8-configuration--environment-variables)
 9. [Developer Tooling — Auto-Commit Daemon](#9-developer-tooling--auto-commit-daemon)
 10. [Known Edge Cases & Gotchas](#10-known-edge-cases--gotchas)
+    - [Frontend Hydration Contract](#10a-frontend-hydration-contract-nextjs-app-router)
 11. [Dependency Rationale](#11-dependency-rationale)
 12. [Pedagogical Notes](#12-pedagogical-notes)
 
@@ -462,6 +463,29 @@ The main pipeline entry point. When executed directly (`tsx src/index.ts`), it i
 | 8 | `generateDealFingerprint` | If the acquirer and target names are very short after normalisation (e.g., both are single-word acronyms with the same value bucket and year), hash collisions between unrelated deals become more likely. This is bounded: SHA-256 has 2^256 possible values; a collision between two real deals is astronomically unlikely. The concern is normalisation collisions (two companies that normalize to the same string). | Monitored by `logFingerprintCollision` in `pipelineLogger.ts`. |
 | 9 | `resolveTickerYahoo` | Yahoo Finance's unofficial API has no documented rate limit, uptime SLA, or versioning contract. It can return 429 or change response shape without notice. | Both lookup functions are wrapped in `try/catch` and return `null` on failure — a missing ticker never blocks the pipeline. |
 | 10 | `upsertDeal` | The two-query SELECT → INSERT/UPDATE has a TOCTOU race: if two pipeline instances run concurrently and both see "no existing row", both will attempt INSERT and one will get a `23505` (unique violation). | The `catch` block on `insertDeal` checks for error code `23505` and retries as an UPDATE. Safe for the current single-process architecture; a distributed lock would be needed if running multiple instances. |
+| 11 | `extractTextFromFiling` | Cheerio v1.x removed `decodeEntities` from `CheerioOptions` (entities are always decoded) and stopped re-exporting DOM node types under the `cheerio` namespace. | Option omitted; DOM types (`Document`, `Element`, `Text`, `AnyNode`) imported directly from `domhandler` — the underlying parser library cheerio wraps. |
+| 12 | `fetchFilingContent` | `response.headers[name]` from Axios is typed `string \| number \| boolean \| string[] \| AxiosHeaders \| null`, not just `string \| null`. A naive assignment to `string \| null` fails the type checker. | Narrowed via `typeof === "string"` guard before use. Non-string header values fall through to the `charset` default. |
+| 13 | `app/layout.tsx` (frontend) | Browser extensions (Grammarly, LastPass, ColorZilla, …) inject DOM attributes onto `<body>` between HTML parse and React hydration. React sees a server/client mismatch on `<body>` and warns. | `<body suppressHydrationWarning>` in the root layout. Suppression is **shallow** — only the `<body>` element's own attributes are excluded; all children are hydration-validated normally. |
+
+---
+
+## 10a. Frontend Hydration Contract (Next.js App Router)
+
+The Next.js 16 frontend in `app/` is rendered on the server (RSC + SSR) and hydrated on the client. The hydration pass walks the server-rendered HTML in lock-step with the live browser DOM and attaches React state/handlers at each node. When the two trees disagree on attributes, text, or structure, React emits a hydration warning and (in React 19) falls back to client-rendering the affected subtree.
+
+**Legitimate-but-harmless mismatches we tolerate:**
+
+| Source | Element Affected | Mitigation |
+|--------|------------------|------------|
+| Grammarly / browser extensions | `<body>` (adds `data-gr-*`, `data-new-gr-c-s-check-loaded`) | `suppressHydrationWarning` on `<body>` in `app/layout.tsx` |
+
+**Anti-patterns we forbid (all produce unpatchable mismatches):**
+
+- `typeof window !== "undefined"` branching inside a component body.
+- `Date.now()`, `Math.random()`, `new Date().toLocaleString()` in render.
+- Reading `localStorage` / `sessionStorage` during initial render.
+
+If runtime-varying data is genuinely required, defer it to a `useEffect` after mount (accepting the cost of client-only content) rather than sprinkling `suppressHydrationWarning` across the tree — the flag is a last resort, not a workaround.
 
 ---
 
@@ -513,5 +537,32 @@ A token bucket refills at a fixed rate and allows short bursts up to capacity; t
 ### Structural Subtyping and the PipelineDeal Contract
 
 `PipelineDeal extends DealRecord` is an example of **structural subtyping** (TypeScript's core type system). Because `PipelineDeal` has every field `DealRecord` has (plus more), any function that accepts `DealRecord` will also accept `PipelineDeal` without a cast. This is the Liskov Substitution Principle (LSP) applied at the type level: the subtype can appear wherever the supertype is expected without breaking callers.
+
+### Identity-Preserving Generics (Type Preservation)
+
+The signature `filterNewFilings<T extends Filing>(filings: T[]): T[]` demonstrates a subtle but powerful pattern: **identity-preserving generics**. Without the type parameter, returning `Filing[]` would force TypeScript to **widen** (erase) the caller's more specific type — dropping fields like `formType` and `cik` that `EdgarFiling` carries but base `Filing` does not.
+
+This is exactly how `Array.prototype.filter<T>(...)` and `Array.prototype.map` can preserve concrete types across transformations. The constraint `extends Filing` captures the function's *structural contract* (the only field it needs is `accessionNumber`), while the type parameter `T` promises to return whatever shape came in — the opposite of type erasure.
+
+**Mental model:** think of `T` as a *label* attached to the input that rides through the function body and re-emerges on the output. Without the label, TypeScript only knows "some Filing"; with it, TypeScript can prove "the same subtype of Filing you gave me." Contrast this with an untyped `any` escape hatch, which destroys information irrecoverably.
+
+### Hydration as a Two-Tree Diff
+
+React SSR hydration is conceptually a **two-tree reconciliation**: the server ships a string of HTML that the browser parses into a DOM tree, and React's client bundle walks its own virtual DOM alongside that live DOM, attaching listeners and state at each node. For the attach to be safe, the two trees must agree structurally and on meaningful attributes.
+
+Three classes of mismatch exist:
+1. **Deterministic server-client divergence** (e.g., `typeof window` branching) — always a bug; fix the code.
+2. **Non-deterministic render output** (e.g., `Math.random()`, timestamps) — always a bug; defer to `useEffect`.
+3. **External DOM mutation between parse and hydrate** (e.g., browser extensions) — *not* a bug in your code; this is the only case `suppressHydrationWarning` legitimately silences.
+
+The React team deliberately made `suppressHydrationWarning` **shallow** (one-element deep) and **attribute-level only** — not a recursive opt-out — precisely so it can't mask bugs of type (1) and (2) inside your own components. Use it as an acknowledgement of external reality, never as a convenience.
+
+**Big-O for hydration:** the diff is O(n) in the size of the rendered DOM tree. A hydration mismatch on `<body>` with `suppressHydrationWarning` costs one skipped attribute comparison — measurable only in microbenchmarks.
+
+### Narrowing Library Types with Guards
+
+Fix #2 (the Axios `content-type` header) is a lesson in **type narrowing via runtime guards**. Axios correctly types `response.headers[name]` as a broad union because HTTP headers can legally be repeated (`string[]`), have numeric defaults, or be normalised by Axios's own `AxiosHeaders` class. Casting to `string | null` is a lie; the `typeof === "string"` guard lets TypeScript's flow analysis narrow the type safely.
+
+This is the same principle behind `if (value instanceof Error)`, `Array.isArray(x)`, and Zod's `safeParse` — three different syntaxes for the same idea: **use runtime evidence to shrink a type**. Never reach for `as` to paper over a union.
 
 **Challenge:** Add a `dealPremiumPct` field to `PipelineDeal` that computes `(transactionValueUSD - targetMarketCap) / targetMarketCap * 100`. What should it be when either input is `null`? How would you propagate this to the Discord embed?
