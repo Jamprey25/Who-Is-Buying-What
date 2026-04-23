@@ -9,8 +9,9 @@
    *   slide-in — opacity + translate on mount
    *   flash    — brief emerald wash into the card surface (dark theme)
    */
+  /* flash-dark uses default fill-mode `none` so bg/shadow revert to utilities after 2.2s */
   --animate-enter: slide-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both,
-    flash-dark 2.2s ease-out both;
+    flash-dark 2.2s ease-out;
 }
 
 @keyframes slide-in {
