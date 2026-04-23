@@ -75,7 +75,7 @@ export function useAcquisitionFeed(): AcquisitionFeed {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [handleNewAcquisition]);
+  }, [handleNewAcquisition, handleDealHistory]);
 
   return { deals, isConnected };
 }
