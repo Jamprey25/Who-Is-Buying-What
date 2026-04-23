@@ -55,6 +55,27 @@ function useFreshIds(deals: PublicDealEvent[], ttlMs: number): ReadonlySet<strin
   return freshIds;
 }
 
+function ExternalLinkIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function DealFeed() {
@@ -62,87 +83,121 @@ export function DealFeed() {
   const freshIds = useFreshIds(deals, 3_000);
 
   return (
-    <section className="mx-auto max-w-2xl px-4 py-10">
+    <section className="relative mx-auto max-w-2xl px-4 py-12 sm:py-16">
       {/* Header */}
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">M&amp;A Deal Feed</h1>
+      <header className="mb-10 sm:mb-12">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-teal-500/20 bg-teal-500/5 px-3 py-1 text-xs font-medium tracking-wide text-teal-300/90 uppercase">
+          <span className="h-1 w-1 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+          SEC EDGAR
+        </div>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              M&amp;A deal feed
+            </h1>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-400 sm:text-base">
+              Material acquisitions as they hit the wire. Values shown when disclosed in the filing.
+            </p>
+          </div>
 
-        <span
-          className={[
-            "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium",
-            isConnected
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-500",
-          ].join(" ")}
-        >
           <span
             className={[
-              "h-2 w-2 rounded-full",
-              isConnected ? "animate-pulse bg-green-500" : "bg-gray-400",
+              "inline-flex shrink-0 items-center gap-2 self-start rounded-full border px-3.5 py-1.5 text-sm font-medium",
+              isConnected
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 shadow-[0_0_20px_-4px_rgba(52,211,153,0.35)]"
+                : "border-slate-600/60 bg-slate-800/80 text-slate-400",
             ].join(" ")}
-          />
-          {isConnected ? "Live" : "Connecting…"}
-        </span>
+          >
+            <span
+              className={[
+                "h-2 w-2 rounded-full",
+                isConnected
+                  ? "animate-pulse bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+                  : "bg-slate-500",
+              ].join(" ")}
+            />
+            {isConnected ? "Live" : "Connecting…"}
+          </span>
+        </div>
       </header>
 
       {/* Empty state */}
       {deals.length === 0 && (
-        <p className="py-20 text-center text-gray-400">
-          Waiting for deals…
-        </p>
+        <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/40 px-6 py-16 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-600/50 bg-slate-800/50">
+            <span className="flex gap-1">
+              <span className="h-2 w-2 animate-bounce rounded-full bg-teal-400/80 [animation-delay:-0.2s]" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-teal-400/80 [animation-delay:-0.1s]" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-teal-400/80" />
+            </span>
+          </div>
+          <p className="text-base font-medium text-slate-300">Waiting for the next filing</p>
+          <p className="mt-1 text-sm text-slate-500">
+            New deals appear here as soon as the pipeline classifies them.
+          </p>
+        </div>
       )}
 
       {/* Deal list */}
-      <ul className="space-y-3">
+      <ul className="space-y-4">
         {deals.map((deal) => (
           <li
             key={deal.id}
-            /*
-             * animate-enter fires both keyframes simultaneously on DOM entry:
-             *   slide-in  — opacity 0→1, translateY -10px→0  (0.3 s)
-             *   flash     — background yellow→white           (2 s)
-             * Because each deal gets a fresh key, the element is always new
-             * to the DOM, so the animation runs exactly once per deal.
-             */
-            className="animate-enter overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+            className="animate-enter group rounded-2xl border border-slate-700/50 bg-slate-900/65 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)] backdrop-blur-md transition-[border-color,transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-teal-500/25 hover:shadow-[0_12px_40px_-12px_rgba(45,212,191,0.12)]"
           >
-            <div className="flex items-start justify-between gap-4 p-4">
-              {/* Left: names + badge + date */}
+            <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              {/* Left: names + meta */}
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="truncate font-semibold text-gray-900">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+                  <span className="truncate text-base font-semibold text-white sm:text-lg">
                     {deal.acquirer}
                   </span>
-                  <span className="text-gray-400" aria-hidden>→</span>
-                  <span className="truncate font-semibold text-gray-900">
+                  <span
+                    className="inline-flex items-center rounded-md border border-slate-600/50 bg-slate-800/60 px-1.5 py-0.5 text-xs font-medium text-teal-400/90"
+                    aria-hidden
+                  >
+                    acquires
+                  </span>
+                  <span className="truncate text-base font-semibold text-white sm:text-lg">
                     {deal.target}
                   </span>
 
-                  {/* Badge — present in DOM only while ID is fresh (≤ 3 s) */}
                   {freshIds.has(deal.id) && (
-                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                      New deal
+                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-teal-500/20 to-cyan-500/15 px-2.5 py-0.5 text-xs font-semibold text-teal-300 ring-1 ring-teal-400/30">
+                      New
                     </span>
                   )}
                 </div>
 
-                <p className="mt-1 text-sm text-gray-400">
-                  {new Date(deal.announcedAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
+                  <time dateTime={deal.announcedAt}>
+                    {new Date(deal.announcedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </time>
+                  <a
+                    href={deal.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-teal-400/90 transition-colors hover:text-teal-300"
+                  >
+                    SEC filing
+                    <ExternalLinkIcon className="opacity-80" />
+                  </a>
+                </div>
               </div>
 
               {/* Right: value */}
-              <div className="shrink-0 text-right">
+              <div className="flex shrink-0 flex-col items-start gap-1 border-t border-slate-700/50 pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6 sm:text-right">
+                <span className="text-[10px] font-medium tracking-wider text-slate-500 uppercase">
+                  Deal value
+                </span>
                 <span
                   className={[
-                    "text-lg font-bold",
-                    deal.transactionValueUSD !== null
-                      ? "text-gray-900"
-                      : "text-gray-400",
+                    "font-mono text-xl font-semibold tracking-tight tabular-nums sm:text-2xl",
+                    deal.transactionValueUSD !== null ? "text-white" : "text-slate-500",
                   ].join(" ")}
                 >
                   {formatValue(deal.transactionValueUSD)}
