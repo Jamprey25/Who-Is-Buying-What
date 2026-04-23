@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 import type { PublicDealEvent } from "../secEdgarFeed";
 
 const MAX_DEALS = 50;
@@ -13,7 +13,6 @@ export interface AcquisitionFeed {
 export function useAcquisitionFeed(): AcquisitionFeed {
   const [deals, setDeals] = useState<PublicDealEvent[]>([]);
   const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
 
   const handleNewAcquisition = useCallback((event: PublicDealEvent) => {
     setDeals((prev) => [event, ...prev].slice(0, MAX_DEALS));
@@ -52,6 +51,19 @@ export function useAcquisitionFeed(): AcquisitionFeed {
     });
   }, []);
 
+  // Keep latest handlers in refs so the socket effect can use a constant `[]`
+  // dependency array. That avoids React's "dependency array changed size"
+  // warning during Fast Refresh when the effect's deps list grows or shrinks
+  // between saved versions of this file.
+  const handlersRef = useRef({
+    onNew: handleNewAcquisition,
+    onHistory: handleDealHistory,
+  });
+  handlersRef.current = {
+    onNew: handleNewAcquisition,
+    onHistory: handleDealHistory,
+  };
+
   useEffect(() => {
     // Empty string tells socket.io-client to connect to the same origin,
     // which is correct when the custom server serves both Next.js and sockets.
@@ -62,20 +74,24 @@ export function useAcquisitionFeed(): AcquisitionFeed {
       reconnectionAttempts: Infinity,
     });
 
-    socketRef.current = socket;
+    const onNew = (event: PublicDealEvent) => {
+      handlersRef.current.onNew(event);
+    };
+    const onHistory = (events: unknown) => {
+      handlersRef.current.onHistory(events);
+    };
 
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
-    socket.on("new_acquisition", handleNewAcquisition);
-    socket.on("deal_history", handleDealHistory);
+    socket.on("new_acquisition", onNew);
+    socket.on("deal_history", onHistory);
 
     return () => {
-      socket.off("new_acquisition", handleNewAcquisition);
-      socket.off("deal_history", handleDealHistory);
+      socket.off("new_acquisition", onNew);
+      socket.off("deal_history", onHistory);
       socket.disconnect();
-      socketRef.current = null;
     };
-  }, [handleNewAcquisition, handleDealHistory]);
+  }, []);
 
   return { deals, isConnected };
 }
