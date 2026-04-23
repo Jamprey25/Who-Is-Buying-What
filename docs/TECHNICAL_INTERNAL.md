@@ -22,6 +22,7 @@
 9. [Developer Tooling — Auto-Commit Daemon](#9-developer-tooling--auto-commit-daemon)
 10. [Known Edge Cases & Gotchas](#10-known-edge-cases--gotchas)
     - [Frontend Hydration Contract](#10a-frontend-hydration-contract-nextjs-app-router)
+    - [Dashboard UI](#10b-dashboard-ui-app--dealfeed)
 11. [Dependency Rationale](#11-dependency-rationale)
 12. [Pedagogical Notes](#12-pedagogical-notes)
 
