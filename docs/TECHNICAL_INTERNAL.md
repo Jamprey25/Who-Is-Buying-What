@@ -490,6 +490,22 @@ If runtime-varying data is genuinely required, defer it to a `useEffect` after m
 
 ---
 
+## 10b. Dashboard UI (`app/` + `DealFeed`)
+
+The live feed is implemented as a client component (`src/components/DealFeed.tsx`) that subscribes to Socket.io via `useAcquisitionFeed`. **Typography:** `app/layout.tsx` loads **Plus Jakarta Sans** and **JetBrains Mono** through `next/font/google`, exposing CSS variables `--font-display` and `--font-jet`. `app/globals.css` maps those onto Tailwind v4 `@theme` keys `--font-sans` and `--font-mono` so utilities `font-sans` / `font-mono` resolve correctly.
+
+**Page chrome:** `app/page.tsx` renders fixed, non-interactive gradient and grid layers (`pointer-events-none`, `aria-hidden`) behind the feed so the main landmark stays a single `<main>` without duplicate focusables.
+
+**Deal rows:** Each `PublicDealEvent` includes `sourceUrl`; the UI surfaces it as an external link with `target="_blank"` and `rel="noopener noreferrer"` (tabnabbing protection).
+
+**Enter animation:** The utility class `animate-enter` (defined in `@theme`) chains two keyframe animations on the same element. `slide-in` uses `animation-fill-mode: both` so the card does not flash unstyled content before frame 0. `flash-dark` uses the default fill mode (`none`) so that after ~2.2s the browser stops applying keyframe `background-color` / `box-shadow` and the Tailwind `bg-*` / `shadow-*` utilities regain full effect — avoiding the common pitfall of `forwards` on a highlight animation permanently overriding layered backgrounds.
+
+### Pedagogical note (UI)
+
+`next/font` inlines font metrics and self-hosts files at build time, which eliminates the extra render-blocking request to `fonts.googleapis.com` and reduces cumulative layout shift compared to a raw `<link>` stylesheet tag.
+
+---
+
 ## 11. Dependency Rationale
 
 | Package | Why Chosen | Alternatives Considered |

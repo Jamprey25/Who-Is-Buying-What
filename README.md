@@ -15,7 +15,7 @@ Financial intelligence shouldn't require a $20k Bloomberg subscription. This sys
 - **Ticker & market cap** — Yahoo Finance (free, no API key) for snapshot market data
 - **News corroboration** — SerpAPI (optional) cross-checks each deal against Google News
 - **PostgreSQL persistence** — idempotent upsert with confidence-based update gating
-- **Live dashboard** — Socket.io `new_acquisition` events; `billion_dollar_club` room for >$1B deals
+- **Live dashboard** — Socket.io `new_acquisition` events; `billion_dollar_club` room for >$1B deals; dark-themed UI with per-row SEC filing links
 - **Alerts** — Discord webhooks (colour-coded by payment type) + Resend HTML email
 
 ---

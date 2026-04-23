@@ -190,7 +190,7 @@ export function DealFeed() {
               </div>
 
               {/* Right: value */}
-              <div className="flex shrink-0 flex-col items-start gap-1 border-t border-slate-700/50 pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6 sm:text-right">
+              <div className="flex shrink-0 flex-col items-start gap-1 border-t border-slate-700/50 pt-4 sm:items-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6 sm:text-right">
                 <span className="text-[10px] font-medium tracking-wider text-slate-500 uppercase">
                   Deal value
                 </span>
