@@ -1,31 +1,36 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jet), ui-monospace, monospace;
+
   /*
-   * Two animations combined into one class so they run on the same element
-   * without conflicting CSS `animation` properties.
-   *   slide-in  — fade + translate on DOM entry (0.3 s)
-   *   flash     — yellow highlight fades to white (2 s)
+   * Combined animation (single `animation` property on the element):
+   *   slide-in — opacity + translate on mount
+   *   flash    — brief emerald wash into the card surface (dark theme)
    */
-  --animate-enter: slide-in 0.3s ease-out both, flash 2s ease-out;
+  --animate-enter: slide-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both,
+    flash-dark 2.2s ease-out both;
 }
 
 @keyframes slide-in {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(12px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes flash {
+@keyframes flash-dark {
   from {
-    background-color: rgb(254 240 138); /* yellow-200 */
+    background-color: rgba(52, 211, 153, 0.12);
+    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.35);
   }
   to {
-    background-color: rgb(255 255 255); /* white */
+    background-color: rgba(15, 23, 42, 0.65);
+    box-shadow: 0 0 0 1px rgba(51, 65, 85, 0.35);
   }
 }
