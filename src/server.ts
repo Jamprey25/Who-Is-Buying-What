@@ -20,6 +20,10 @@ export function getIO(): Server {
 
 const BILLION = 1_000_000_000;
 
+/** In-memory ring buffer so late-connecting browsers see recent deals. */
+const MAX_RECENT_DEALS = 50;
+const recentAcquisitions: PublicDealEvent[] = [];
+
 export function broadcastNewAcquisition(deal: DealRecord): void {
   const server = getIO();
 
@@ -31,6 +35,11 @@ export function broadcastNewAcquisition(deal: DealRecord): void {
     sourceUrl: deal.sourceUrl,
     transactionValueUSD: deal.transactionValueUSD,
   };
+
+  recentAcquisitions.unshift(event);
+  if (recentAcquisitions.length > MAX_RECENT_DEALS) {
+    recentAcquisitions.length = MAX_RECENT_DEALS;
+  }
 
   server.emit("new_acquisition", event);
 
@@ -64,6 +73,10 @@ async function main(): Promise<void> {
 
   io.on("connection", (socket) => {
     console.log(`[socket.io] client connected: ${socket.id}`);
+
+    // Replay recent deals so the UI is not empty after a refresh or if the
+    // client connected after broadcasts already fired.
+    socket.emit("deal_history", [...recentAcquisitions]);
 
     socket.on("disconnect", (reason) => {
       console.log(`[socket.io] client disconnected: ${socket.id} (${reason})`);

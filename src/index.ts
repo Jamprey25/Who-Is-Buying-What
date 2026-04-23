@@ -102,7 +102,7 @@ async function runPipelinePoll(): Promise<void> {
   const newFilings  = filterNewFilings(allFilings);
 
   if (newFilings.length === 0) {
-    log.debug("No new filings since last cursor — skipping cycle");
+    log.info("No new filings since last cursor — skipping cycle (delete data/state.json to reprocess the feed window)");
     return;
   }
 

@@ -293,6 +293,27 @@ export async function extractEntities(
   const firstAttempt = tryParseEntity(primary);
   if (firstAttempt.success) return firstAttempt.data;
 
+  // Ollama: one cheap retry — small models occasionally truncate JSON mid-stream.
+  if (resolvedProvider("extract") === "ollama") {
+    logger.warn(
+      { firstAttemptErrors: firstAttempt.issues, rawPreview: primary.slice(0, 200) },
+      "[extractEntities] First parse failed — retrying Ollama once"
+    );
+    const secondRaw = await complete({
+      purpose: "extract",
+      system: EXTRACTION_SYSTEM,
+      user: truncated,
+      maxTokens: 512,
+      json: true,
+    });
+    const secondAttempt = tryParseEntity(secondRaw);
+    if (secondAttempt.success) return secondAttempt.data;
+
+    throw new Error(
+      `[extractEntities] Ollama extraction failed after retry — ${secondAttempt.issues}`
+    );
+  }
+
   // Anthropic-only: on validation failure, retry once with Sonnet.
   // Small models occasionally produce slightly malformed JSON on edge cases;
   // the Sonnet retry costs ~$0.04 but only fires for the 5-10% of filings

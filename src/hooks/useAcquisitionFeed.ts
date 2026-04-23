@@ -19,6 +19,39 @@ export function useAcquisitionFeed(): AcquisitionFeed {
     setDeals((prev) => [event, ...prev].slice(0, MAX_DEALS));
   }, []);
 
+  const handleDealHistory = useCallback((events: unknown) => {
+    if (!Array.isArray(events) || events.length === 0) return;
+    const valid: PublicDealEvent[] = [];
+    for (const e of events) {
+      if (
+        e &&
+        typeof e === "object" &&
+        typeof (e as PublicDealEvent).id === "string" &&
+        typeof (e as PublicDealEvent).acquirer === "string" &&
+        typeof (e as PublicDealEvent).target === "string" &&
+        typeof (e as PublicDealEvent).announcedAt === "string"
+      ) {
+        valid.push(e as PublicDealEvent);
+      }
+    }
+    if (valid.length === 0) return;
+    setDeals((prev) => {
+      const seen = new Set(prev.map((d) => d.id));
+      const merged = [...prev];
+      for (const d of valid) {
+        if (!seen.has(d.id)) {
+          merged.push(d);
+          seen.add(d.id);
+        }
+      }
+      merged.sort(
+        (a, b) =>
+          new Date(b.announcedAt).getTime() - new Date(a.announcedAt).getTime()
+      );
+      return merged.slice(0, MAX_DEALS);
+    });
+  }, []);
+
   useEffect(() => {
     // Empty string tells socket.io-client to connect to the same origin,
     // which is correct when the custom server serves both Next.js and sockets.
@@ -34,9 +67,11 @@ export function useAcquisitionFeed(): AcquisitionFeed {
     socket.on("connect", () => setIsConnected(true));
     socket.on("disconnect", () => setIsConnected(false));
     socket.on("new_acquisition", handleNewAcquisition);
+    socket.on("deal_history", handleDealHistory);
 
     return () => {
       socket.off("new_acquisition", handleNewAcquisition);
+      socket.off("deal_history", handleDealHistory);
       socket.disconnect();
       socketRef.current = null;
     };
