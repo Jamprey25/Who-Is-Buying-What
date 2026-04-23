@@ -77,10 +77,15 @@ Output ONLY a single-line JSON object with exactly these keys:
 No preamble, no markdown, no explanation outside the JSON.`.trim();
 
 /**
- * Classifies a filing using Claude Haiku.
+ * Classifies a filing using the configured LLM provider (Anthropic or Ollama).
  * Falls back to { classification: "OTHER", confidence: 0, reasoning: "..." }
  * on any API or parse error so the pipeline can safely discard the filing
  * without crashing.
+ *
+ * Local models often emit valid JSON with wrong enum labels (e.g.
+ * "Financial Information"). After strict Zod fails we apply a heuristic
+ * mapper; when provider is Ollama and the filing text still contains
+ * strong M&A keywords, we treat it as ACQUISITION so the pipeline can proceed.
  */
 export async function classifyFiling(
   text: string
@@ -96,19 +101,120 @@ export async function classifyFiling(
       json: true,
     });
 
-    const parsed = ClassificationSchema.safeParse(JSON.parse(raw));
-    if (parsed.success) {
-      return parsed.data;
+    const stripped = stripLlmJsonWrapper(raw);
+    let parsedObj: unknown;
+    try {
+      parsedObj = JSON.parse(stripped);
+    } catch (parseErr) {
+      logger.warn(
+        { parseErr, rawPreview: raw.slice(0, 200) },
+        "[classifyFiling] JSON.parse failed on model output"
+      );
+      return maybeOllamaKeywordFallback(truncated);
+    }
+
+    const strict = ClassificationSchema.safeParse(parsedObj);
+    if (strict.success) return strict.data;
+
+    const coerced = coerceClassificationFromObject(
+      parsedObj,
+      truncated,
+      resolvedProvider("classify") === "ollama"
+    );
+    if (coerced) {
+      logger.info(
+        { coercedFrom: (parsedObj as { classification?: unknown })?.classification },
+        "[classifyFiling] Applied loose classification coercion"
+      );
+      return coerced;
     }
 
     logger.warn(
-      { validationErrors: parsed.error.issues, raw },
+      { validationErrors: strict.error.issues, rawPreview: raw.slice(0, 240) },
       "[classifyFiling] Zod validation failed — defaulting to OTHER"
     );
   } catch (err) {
     logger.error({ err }, "[classifyFiling] API or parse error — defaulting to OTHER");
   }
 
+  return maybeOllamaKeywordFallback(truncated);
+}
+
+function parseConfidenceField(value: unknown): number {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return Math.min(1, Math.max(0, value));
+  }
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    if (s.includes("high")) return 0.85;
+    if (s.includes("medium") || s.includes("moderate")) return 0.55;
+    if (s.includes("low")) return 0.3;
+    const n = Number.parseFloat(s.replace(/[^0-9.+-]/g, ""));
+    if (!Number.isNaN(n)) return Math.min(1, Math.max(0, n));
+  }
+  return 0.5;
+}
+
+function coerceClassificationFromObject(
+  obj: unknown,
+  filingText: string,
+  isOllama: boolean
+): FilingClassificationResult | null {
+  if (typeof obj !== "object" || obj === null) return null;
+
+  const rec = obj as Record<string, unknown>;
+  const labelRaw = String(rec.classification ?? rec.category ?? "").trim();
+  const reasoning = String(rec.reasoning ?? rec.reason ?? rec.explanation ?? "").trim() || "model output";
+  const confidence = parseConfidenceField(rec.confidence);
+
+  const blob = `${labelRaw} ${reasoning}`.toUpperCase();
+
+  const exact = labelRaw.toUpperCase().replace(/\s+/g, "_");
+  if (exact === "ACQUISITION" || exact === "MATERIAL_AGREEMENT" || exact === "OTHER") {
+    return {
+      classification: exact as FilingClassification,
+      confidence,
+      reasoning,
+    };
+  }
+
+  if (
+    /\b(ACQUISITION|MERGER|ACQUIRE|ACQUIRING|BUSINESS COMBINATION|PURCHASE AGREEMENT|STOCK PURCHASE|ASSET PURCHASE|PLAN OF MERGER|TENDER OFFER)\b/.test(
+      blob
+    )
+  ) {
+    return { classification: "ACQUISITION", confidence, reasoning };
+  }
+
+  if (
+    /\b(MATERIAL\s+AGREEMENT|MATERIAL_AGREEMENT|JOINT\s+VENTURE|CREDIT\s+FACILITY|LICENSE\s+AGREEMENT)\b/.test(
+      blob
+    ) &&
+    !/\b(MERGER|ACQUISITION|ACQUIRE)\b/.test(blob)
+  ) {
+    return { classification: "MATERIAL_AGREEMENT", confidence, reasoning };
+  }
+
+  if (isOllama && hasMaSignals(filingText)) {
+    return {
+      classification: "ACQUISITION",
+      confidence: Math.min(0.6, confidence),
+      reasoning: `${reasoning} (ollama: non-schema label "${labelRaw}"; filing text contains M&A keywords)`,
+    };
+  }
+
+  return null;
+}
+
+function maybeOllamaKeywordFallback(filingText: string): FilingClassificationResult {
+  if (resolvedProvider("classify") === "ollama" && hasMaSignals(filingText)) {
+    return {
+      classification: "ACQUISITION",
+      confidence: 0.55,
+      reasoning:
+        "ollama fallback: model output was not parseable as strict JSON schema; filing text contains M&A keywords",
+    };
+  }
   return { classification: "OTHER", confidence: 0, reasoning: "classification failed" };
 }
 
@@ -225,9 +331,10 @@ type EntityParseAttempt =
   | { success: false; issues: string };
 
 function tryParseEntity(raw: string): EntityParseAttempt {
+  const cleaned = stripLlmJsonWrapper(raw);
   let json: unknown;
   try {
-    json = JSON.parse(raw);
+    json = JSON.parse(cleaned);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, issues: `JSON.parse failed: ${msg}` };
